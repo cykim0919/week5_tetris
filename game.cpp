@@ -29,7 +29,7 @@ std::string Game::formatPlayTime()//플레이타임 계산
 void Game::update()
 {
     // 블록을 한 칸 아래로 이동할 수 있는지 검사
-    if (isValidPosition(currentBlockX, currentBlockY + 1, currentBlock))
+    if (currentBlock && isValidPosition(currentBlockX, currentBlockY + 1, currentBlock))
     {
         currentBlockY++; // 가능하다면 블록을 한 칸 아래로 이동
     }
@@ -45,11 +45,13 @@ void Game::update()
 void Game::draw()
 {
     console::clear();
-
+    console::drawBox(0,0,10,20); // board 칸을 그린다
+    console::drawBox(12,0,16,5); // Next 칸을 그린다
+    console::drawBox(17,0,21,5); // Hold 칸을 그린다
     // 보드를 순회하면서 블록이 있는 위치를 그림
-    for (int x = 0; x < BOARD_WIDTH - 1; x++)
+    for (int x = 0; x < BOARD_WIDTH; x++)
     {
-        for (int y = 0; y < BOARD_HEIGHT - 1; y++)
+        for (int y = 0; y < BOARD_HEIGHT; y++)
         {
             if (board_[x][y]) // 블록이 있는 위치인 경우
             {
@@ -57,8 +59,9 @@ void Game::draw()
             }
         }
     }
-
-    currentBlock->drawAt(BLOCK_STRING, currentBlockX, currentBlockY); // 현재 블록을 그림
+    if(currentBlock){
+        currentBlock->drawAt(BLOCK_STRING, currentBlockX, currentBlockY); // 현재 블록을 그림
+    }
     console::log("Play Time: " + formatPlayTime());
 }
 
