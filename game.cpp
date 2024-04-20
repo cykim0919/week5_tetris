@@ -1,13 +1,15 @@
 #include "game.h"
 #include <cstring>
-
 // Game 클래스의 생성자
-Game::Game() : score_(0), gameOver_(false)
+Game::Game() : score_(0), gameOver_(false), linesRemaining(LINES)
 {
     // 모든 칸을 0으로 설정
-    std::memset(board_, 0, sizeof(board_));
+    std::memset(board_, false, sizeof(board_));
     startTime_ = std::chrono::steady_clock::now(); // 게임 시작 시간 초기화
+
+    spawnBlock();
 }
+
 std::string Game::formatPlayTime()//플레이타임 계산
 {
     auto currentTime = std::chrono::steady_clock::now();
@@ -28,41 +30,126 @@ std::string Game::formatPlayTime()//플레이타임 계산
 // 게임 상태를 업데이트하는 함수
 void Game::update()
 {
-    // 블록을 한 칸 아래로 이동할 수 있는지 검사
-    if (currentBlock && isValidPosition(currentBlockX, currentBlockY + 1, currentBlock))
+    Input();
+
+    // 드롭 타이머 감소
+    dropTimer -= 1; // 예시로 1 감소시킵니다. 이 값을 조절하여 드롭 속도를 변경할 수 있습니다.
+
+    // 드롭 타이머가 0 이하일 때만 블록을 아래로 이동
+    if (dropTimer <= 0 && currentBlock && isValidPosition(currentBlockX, currentBlockY + 1, currentBlock))
     {
-        currentBlockY++; // 가능하다면 블록을 한 칸 아래로 이동
+        currentBlockY++; // 블록을 한 칸 아래로 이동
+        dropTimer = DROP_DELAY; // 드롭 타이머 재설정
     }
-    else
+    else if (!isValidPosition(currentBlockX, currentBlockY + 1, currentBlock))
     {
         fixBlock();      // 블록을 보드에 고정
         spawnBlock();    // 새로운 블록을 생성
         checkLines();    // 완성된 라인이 있는지 검사
+    }   
+}
+void Game::drawShadow()
+{
+    // 그림자 블록을 그리기 위해 현재 블록의 위치를 계산
+    int shadowY = currentBlockY;
+    while (isValidPosition(currentBlockX, shadowY + 1, currentBlock))
+    {
+        shadowY++; // 그림자 블록의 Y 위치를 하나씩 증가시킴
+    }
+
+    // 쉐도우 블록을 그리기
+    for (int i = 0; i < currentBlock->size(); i++)
+    {
+        for (int j = 0; j < currentBlock->size(); j++)
+        {
+            if (currentBlock->check(i, j))
+            {
+                console::draw(currentBlockX + i, shadowY + j, SHADOW_STRING);
+            }
+        }
+    }
+
+    // 원래 블록을 그리기
+    for (int i = 0; i < currentBlock->size(); i++)
+    {
+        for (int j = 0; j < currentBlock->size(); j++)
+        {
+            if (currentBlock->check(i, j))
+            {
+                // 쉐도우와 겹치는 부분이면 원래 블록으로 그리기
+                if (shadowY + j == currentBlockY + j) // Y 좌표 비교
+                {
+                    console::draw(currentBlockX + i, currentBlockY + j, BLOCK_STRING);
+                }
+            }
+        }
     }
 }
 
 // 게임 보드와 현재 블록을 그리는 함수
 void Game::draw()
 {
+    int minH = BOARD_HEIGHT;
+
     console::clear();
-    console::drawBox(0,0,10,20); // board 칸을 그린다
-    console::drawBox(12,0,16,5); // Next 칸을 그린다
-    console::drawBox(17,0,21,5); // Hold 칸을 그린다
-    // 보드를 순회하면서 블록이 있는 위치를 그림
-    for (int x = 0; x < BOARD_WIDTH; x++)
+    console::drawBox(0, 0, 11, 20); // board 칸을 그린다
+    console::drawBox(13, 0, 18, 5); // Next 칸을 그린다
+    console::drawBox(19, 0, 24, 5); // Hold 칸을 그린다
+    console::draw(14, 0, "Next");
+    console::draw(20, 0, "Hold");
+    
+
+    for (int i = 0; i < currentBlock->size(); i++)
     {
-        for (int y = 0; y < BOARD_HEIGHT; y++)
+        for (int j = 0; j < currentBlock->size(); j++)
         {
-            if (board_[x][y]) // 블록이 있는 위치인 경우
+            if (currentBlock->check(i, j))
             {
-                console::draw(x, y, BLOCK_STRING); // 해당 위치에 블록을 그림
+                for (int k = currentBlockY + i; k < BOARD_HEIGHT; k++)
+                {
+                    if (!board_[currentBlockX + j][k])
+                    {
+                        if(minH > (k - currentBlockY - i)){
+                            minH = k - currentBlockY - i;
+                        }
+                        else{
+                            minH = minH;
+                        }
+                    }
+                }
             }
         }
     }
-    if(currentBlock){
-        currentBlock->drawAt(BLOCK_STRING, currentBlockX, currentBlockY); // 현재 블록을 그림
+
+    for (int i = 0; i < currentBlock->size(); i++)
+    {
+        for (int j = 0; j < currentBlock->size(); j++)
+        {
+            if (currentBlock->check(i, j)) 
+            {
+                currentBlock->drawAt(BLOCK_STRING, currentBlockX + i, currentBlockY + j);
+            }
+        }
     }
-    console::log("Play Time: " + formatPlayTime());
+
+    for (int i = 0; i < BOARD_WIDTH; i++) 
+    {
+        for (int j = 0; j < BOARD_HEIGHT; j++) 
+        {
+            if (board_[i][j]) 
+            {
+                console::draw(i, j, BLOCK_STRING);
+            }
+        }
+    }
+    drawShadow();// 그림자 그리기
+    int playTimeX = ((BOARD_WIDTH - 10) / 2)+2;
+    int playTimeY = BOARD_HEIGHT+2;
+    // 남은 라인수 출력
+    console::draw(playTimeX - 2, playTimeY - 1, (std::to_string(linesRemaining) + " lines left"));
+    // Play Time을 게임판 아래쪽 중앙에 출력
+    
+    console::draw(playTimeX, playTimeY, formatPlayTime());
 }
 
 // 게임 종료 조건을 반환하는 함수
@@ -74,13 +161,19 @@ bool Game::shouldExit()
 // 블록을 보드에 고정하는 함수
 void Game::fixBlock()
 {
-    for (int x = 0; x < currentBlock->size(); x++)
+    for (int i = 0; i < currentBlock->size(); i++)
     {
-        for (int y = 0; y < currentBlock->size(); y++)
+        for (int j = 0; j < currentBlock->size(); j++)
         {
-            if (currentBlock->check(x, y)) // 블록이 있는 경우
+            if (currentBlock->check(i, j))
             {
-                board_[currentBlockX + x][currentBlockY + y] = true; // 해당 위치에 블록을 고정
+                int posX = currentBlockX + i;
+                int posY = currentBlockY + j;
+
+                if (posX >= 0 && posX < BOARD_WIDTH && posY >= 0 && posY < BOARD_HEIGHT)
+                {
+                    board_[posX][posY] = true;
+                }
             }
         }
     }
@@ -103,7 +196,61 @@ bool Game::isValidPosition(int x, int y, Tetromino* block)
             }
         }
     }
+
     return true; // 유효한 위치
+}
+
+void Game::Input()
+{
+    if (console::key(console::K_LEFT))
+    {
+        if (currentBlock && isValidPosition(currentBlockX - 1, currentBlockY, currentBlock))
+        {
+            currentBlockX--; // 가능하다면 블록을 한 칸 아래로 이동
+        }
+    }
+
+    else if (console::key(console::K_RIGHT))
+    {
+        if (currentBlock && isValidPosition(currentBlockX + 1, currentBlockY, currentBlock))
+        {
+            currentBlockX++; // 가능하다면 블록을 한 칸 아래로 이동
+        }
+    }
+
+    else if (console::key(console::K_DOWN))
+    {
+        if (isValidPosition(currentBlockX, currentBlockY + 1, currentBlock))
+        {
+            currentBlockY++;
+        }
+    }
+    else if (console::key(console::K_UP)) // 윗방향키를 눌렀을 때
+    {
+        // 현재 블록을 맨 아래까지 빠르게 이동시킴
+        while (isValidPosition(currentBlockX, currentBlockY + 1, currentBlock))
+        {
+            currentBlockY++;
+        }
+    }
+    else if (console::key(console::K_X))
+    {
+        currentBlock->rotatedCW();
+    }
+
+    else if (console::key(console::K_Z))
+    {
+        currentBlock->rotatedCCW();
+    }
+    else if (console::key(console::K_ESC)) // ESC 키를 눌렀을 때
+    {
+        gameOver_ = true; // 게임 오버 상태로 설정
+    }
+}
+
+bool Game::CheckBlock()
+{
+    return false;
 }
 
 // 게임 초기화 함수
@@ -126,7 +273,9 @@ void Game::spawnBlock()
     if (!isValidPosition(currentBlockX, currentBlockY, currentBlock))
     {
         gameOver_ = true;
-        console::log("Game Over!");
+        int gameOverX = (BOARD_WIDTH - 9) / 2;
+        int gameOverY = (BOARD_HEIGHT - 1) / 2;
+        console::draw(gameOverX, gameOverY, "You Lost");
     }
 }
 // 게임이 승리 조건을 만족하는지 검사하는 함수
@@ -153,17 +302,21 @@ bool Game::checkWin()
         }
     }
 
-    return linesCleared >= LINES; // 지워진 라인 수가 40 이상인 경우 승리
+    // 남은 라인 수를 계산
+    linesRemaining = linesRemaining - linesCleared;
+
+    // 남은 라인 수가 0 이하일 경우 승리
+    return linesRemaining <= 0;
 }
 
 // 완성된 라인이 있는지 검사하고 처리하는 함수
 void Game::checkLines()
 {
     int linesCleared = 0; // 제거된 라인 수
-    for (int y = 0; y < BOARD_HEIGHT; y++)
+    for (int y = BOARD_HEIGHT -1; y >= 0; y--)
     {
         bool lineComplete = true; // 현재 라인이 완성되었는지 여부를 저장할 변수
-        for (int x = 0; x < BOARD_WIDTH; x++)
+        for (int x = 1; x < BOARD_WIDTH; x++)
         {
             if (!board_[x][y]) // 라인에 빈 공간이 있는 경우
             {
@@ -185,20 +338,20 @@ void Game::checkLines()
 
             // 맨 위의 라인을 초기화
             memset(board_[0], 0, BOARD_WIDTH * sizeof(bool));
-            linesCleared++; // 제거된 라인 수를 증가
+            linesRemaining --;
+            y++;
+            linesCleared++;
         }
     }
 
     if (linesCleared > 0) // 라인이 제거된 경우
     {
-        // 남은 줄 수를 출력
-        int linesRemaining = LINES - linesCleared;
-        console::log(std::to_string(linesRemaining) + " lines left");
-
         // 게임 승리 조건 검사
         if (checkWin())
         {
-            console::log("You Win!");
+            int WinX = (BOARD_WIDTH - 9) / 2;
+            int WinY = (BOARD_HEIGHT - 1) / 2;
+            console::draw(WinX, WinY, "You Win");
             gameOver_ = true;
         }
     }

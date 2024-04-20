@@ -12,7 +12,6 @@ class Tetromino {
 
 	// 디버그용 이름
 	std::string name_;
-
 	// 테트로미노의 모양을 저장하는 배열
 	// shape[x][y]가 true인 경우 x, y 위치에 블록이 있는 것이고 false의 경우 없는
 	// 것이다.
