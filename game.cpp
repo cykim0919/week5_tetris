@@ -189,7 +189,7 @@ bool Game::isValidPosition(int x, int y, Tetromino* block)
             if (block->check(i, j)) // 블록이 있는 경우
             {
                 // 블록이 보드를 벗어나거나 다른 블록과 겹치는 경우
-                if (x + i < 0 || x + i >= BOARD_WIDTH || y + j < 0 || y + j >= BOARD_HEIGHT || board_[x + i][y + j])
+                if (x + i < 1 || x + i >= BOARD_WIDTH || y + j < 0 || y + j >= BOARD_HEIGHT || board_[x + i][y + j])
                 {
                     return false; // 유효하지 않은 위치
                 }
