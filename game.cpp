@@ -352,6 +352,7 @@ void Game::checkLines()
             int WinX = (BOARD_WIDTH - 9) / 2;
             int WinY = (BOARD_HEIGHT - 1) / 2;
             console::draw(WinX, WinY, "You Win");
+            console::draw(WinX, WinY+1, formatPlayTime());
             gameOver_ = true;
         }
     }
